@@ -5,7 +5,7 @@ using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
 using System.Text;
 
-
+// https://github.com/ma261065/DotNetStratumMiner
 namespace DotNetStratumMiner
 {
     public static class Utilities
@@ -170,6 +170,6 @@ namespace DotNetStratumMiner
             ms.Close();
             return result;
         }
-    }
+	}
 }
 

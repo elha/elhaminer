@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Text;
 
+// https://github.com/ma261065/DotNetStratumMiner
 namespace DotNetStratumMiner
 {
     class Stratum
@@ -24,6 +25,7 @@ namespace DotNetStratumMiner
         private string Username;
         private string Password;
         public int ID;
+        public DateTime LastTransmision;
 
         public void ConnectToServer(string MineServer, int MinePort, string MineUser, string MinePassword)
         {
@@ -38,6 +40,8 @@ namespace DotNetStratumMiner
 
                 // Start an asynchronous connection
                 tcpClient.BeginConnect(Server, Port, new AsyncCallback(ConnectCallback), tcpClient);
+
+                LastTransmision = DateTime.Now;
             }
             catch (Exception ex)
             {
@@ -89,6 +93,7 @@ namespace DotNetStratumMiner
             try
             {
                 tcpClient.GetStream().Write(bytesSent, 0, bytesSent.Length);
+                LastTransmision = DateTime.Now;
                 PendingACKs.Add(Command.id, Command.method);
             }
             catch (Exception ex)
@@ -98,6 +103,34 @@ namespace DotNetStratumMiner
             }
             
             Console.WriteLine("Sent mining.subscribe");
+        }
+
+        public void SendSUGGESTDIFFICULTY(uint Difficulty)
+        {
+            Byte[] bytesSent;
+            StratumCommand Command = new StratumCommand();
+
+            Command.id = ID++;
+            Command.method = "mining.suggest_difficulty";
+            Command.parameters = new ArrayList();
+            Command.parameters.Add(Difficulty);
+            string request = Utilities.JsonSerialize(Command) + "\n";
+
+            bytesSent = Encoding.ASCII.GetBytes(request);
+
+            try
+            {
+                tcpClient.GetStream().Write(bytesSent, 0, bytesSent.Length);
+                LastTransmision = DateTime.Now;
+                PendingACKs.Add(Command.id, Command.method);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Socket error:" + ex.Message);
+                ConnectToServer(Server, Port, Username, Password);
+            }
+
+            Console.WriteLine("Sent mining.suggest_difficulty");
         }
 
         public void SendAUTHORIZE()
@@ -118,6 +151,7 @@ namespace DotNetStratumMiner
             try
             {
                 tcpClient.GetStream().Write(bytesSent, 0, bytesSent.Length);
+                LastTransmision = DateTime.Now;
                 PendingACKs.Add(Command.id, Command.method);
             }
             catch(Exception ex)
@@ -148,6 +182,7 @@ namespace DotNetStratumMiner
             try
             {
                 tcpClient.GetStream().Write(bytesSent, 0, bytesSent.Length);
+                LastTransmision = DateTime.Now;
                 PendingACKs.Add(Command.id, Command.method);
             }
             catch (Exception ex)
@@ -197,11 +232,11 @@ namespace DotNetStratumMiner
 
             page = page + data;
 
-            int FoundClose = page.IndexOf('}');
+            int FoundClose = page.IndexOf('\n');
 
             while (FoundClose > 0)
             {
-                string CurrentString = page.Substring(0, FoundClose + 1);
+                string CurrentString = page.Substring(0, FoundClose);
 
                 // We can get either a command or response from the server. Try to deserialise both
                 StratumCommand Command = Utilities.JsonDeserialize<StratumCommand>(CurrentString);
@@ -241,8 +276,8 @@ namespace DotNetStratumMiner
                         GotResponse(Cmd, e);
                 }
 
-                page = page.Remove(0, FoundClose + 2);
-                FoundClose = page.IndexOf('}');
+                page = page.Remove(0, FoundClose+1 );
+                FoundClose = page.IndexOf('\n');
             }
 
             // Then start reading from the network again.
